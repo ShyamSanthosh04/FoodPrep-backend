@@ -1,48 +1,44 @@
 const express = require("express");
-const fs = require("fs");
-const auth = require("../middleware/auth");
-const roleCheck = require("../middleware/role");
 const router = express.Router();
+const fs = require("fs");
 
-const FILE = "./recipes.json";
+const authenticate = require("../middleware/auth");
+const authorizeRoles = require("../middleware/role");
 
-// Read & write helpers
-const getRecipes = () => JSON.parse(fs.readFileSync(FILE));
-const saveRecipes = (data) =>
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
+const recipesFile = "./recipes.json";
 
-// GET all recipes
 router.get("/", (req, res) => {
-  const recipes = getRecipes();
-  res.json(recipes);
+  const data = JSON.parse(fs.readFileSync(recipesFile));
+  res.json(data);
 });
 
-// POST create recipe
-router.post("/", auth, roleCheck(["chef", "admin"]), (req, res) => {
-  const recipes = getRecipes();
-  const newRecipe = { id: Date.now(), ...req.body, createdBy: req.user.id };
+router.post("/", authenticate, authorizeRoles("admin", "chef"), (req, res) => {
+  const recipes = JSON.parse(fs.readFileSync(recipesFile));
+  const newRecipe = { ...req.body, id: Date.now() };
   recipes.push(newRecipe);
-  saveRecipes(recipes);
-  res.json(newRecipe);
+  fs.writeFileSync(recipesFile, JSON.stringify(recipes));
+  res.status(201).json({ message: "Recipe created" });
 });
 
-// PUT update recipe
-router.put("/:id", auth, roleCheck(["chef", "admin"]), (req, res) => {
-  let recipes = getRecipes();
-  const index = recipes.findIndex((r) => r.id == req.params.id);
-  if (index === -1) return res.status(404).json({ msg: "Recipe not found" });
+router.put(
+  "/:id",
+  authenticate,
+  authorizeRoles("admin", "chef"),
+  (req, res) => {
+    const recipes = JSON.parse(fs.readFileSync(recipesFile));
+    const index = recipes.findIndex((r) => r.id == req.params.id);
+    if (index === -1) return res.status(404).json({ message: "Not found" });
+    recipes[index] = { ...recipes[index], ...req.body };
+    fs.writeFileSync(recipesFile, JSON.stringify(recipes));
+    res.json({ message: "Recipe updated" });
+  }
+);
 
-  recipes[index] = { ...recipes[index], ...req.body };
-  saveRecipes(recipes);
-  res.json(recipes[index]);
-});
-
-// DELETE recipe
-router.delete("/:id", auth, roleCheck(["admin"]), (req, res) => {
-  let recipes = getRecipes();
-  recipes = recipes.filter((r) => r.id != req.params.id);
-  saveRecipes(recipes);
-  res.json({ msg: "Deleted" });
+router.delete("/:id", authenticate, authorizeRoles("admin"), (req, res) => {
+  const recipes = JSON.parse(fs.readFileSync(recipesFile));
+  const filtered = recipes.filter((r) => r.id != req.params.id);
+  fs.writeFileSync(recipesFile, JSON.stringify(filtered));
+  res.json({ message: "Recipe deleted" });
 });
 
 module.exports = router;
