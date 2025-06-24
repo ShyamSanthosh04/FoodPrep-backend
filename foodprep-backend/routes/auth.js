@@ -4,7 +4,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fs = require("fs");
 
-const USERS_FILE = "./users.json";
+const path = require("path");
+const USERS_FILE = path.join(__dirname, "..", "users.json");
+
 const JWT_SECRET = "my_secret_key";
 
 function getUsers() {
